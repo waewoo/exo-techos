@@ -1,140 +1,207 @@
----
----
+# Solution Détaillée de l'Exercice Pratique (Approche Dépôt Unifié)
 
-# Solution Détaillée de l'Exercice Pratique
-
-Ce document décrit, étape par étape, une solution possible à l'exercice. Il vous servira de guide pour évaluer le travail du candidat.
+Cette solution propose une structure de projet unifiée, où le code de l'API, les tests (unitaires et fonctionnels) et la configuration CI/CD cohabitent dans un seul et même dépôt Git.
 
 ## Structure Finale des Fichiers
 
-Le candidat devrait arriver à une structure de répertoires qui ressemble à ceci. Chaque fichier a un rôle précis dans la construction d'un projet de test robuste et maintenable.
+Cette structure est simple, standard et facile à prendre en main pour un développeur.
 
 ```
-test_session/
-├── api_project/
-│   └── api.py
-└── api_test_kit/
-    ├── .git/
-    ├── venv/
-    ├── tests/
-    │   └── test_api.py
-    ├── .gitlab-ci.yml
-    ├── config.ini
-    ├── README.md
-    └── requirements.txt
+projet_coach_artisan/
+├── .git/
+├── .gitlab-ci.yml
+├── README.md
+├── requirements.txt
+├── src/
+│   └── api/
+│       ├── __init__.py
+│       └── main.py
+└── tests/
+    ├── test_functional_endpoints.py
+    └── test_unit_logic.py
 ```
 
-* **`api_project/api.py`** : Contient le code source de l'API FastAPI. C'est le service que nous allons tester. Il est volontairement simple pour se concentrer sur la partie test.
-* **`api_test_kit/`** : Le répertoire racine de notre kit de test. Il est conçu pour être un projet autonome et un dépôt Git indépendant.
-* **`.git/`** : Répertoire interne créé par la commande `git init`. Il contient tout l'historique des versions et la configuration du dépôt Git.
-* **`venv/`** : Répertoire de l'environnement virtuel Python. Il isole les dépendances du projet pour éviter les conflits et garantir la reproductibilité.
-* **`tests/test_api.py`** : Le cœur du projet de test. Ce fichier contient les cas de test écrits avec le framework Pytest pour valider les endpoints de l'API.
-* **`.gitlab-ci.yml`** : Fichier de configuration pour le pipeline d'intégration continue de GitLab. Il définit les étapes (`stages`) et les jobs (`lint`, `test`) à exécuter automatiquement.
-* **`config.ini`** : Fichier de configuration permettant d'externaliser les paramètres variables, comme l'URL de base de l'API. Cela évite de les coder en dur dans les tests.
-* **`README.md`** : Le fichier de documentation au format Markdown. Il est crucial car il explique comment un autre développeur peut installer, configurer et lancer le projet de test.
-* **`requirements.txt`** : Liste toutes les bibliothèques Python nécessaires au projet avec leurs versions exactes. Il est généré par `pip freeze` et permet une installation fiable et reproductible des dépendances.
+* **`src/api/main.py`** : Le code source de l'application FastAPI.
+* **`tests/test_unit_logic.py`** : Les tests unitaires, qui valident la logique interne sans serveur HTTP.
+* **`tests/test_functional_endpoints.py`** : Les tests fonctionnels, qui valident les endpoints de l'API en utilisant le `TestClient` de FastAPI.
+* **`.gitlab-ci.yml`, `README.md`, `requirements.txt`** : Fichiers de configuration et de documentation communs à tout le projet.
 
-### Étape 1 à 3 : API, Projet de Test et Écriture des Tests
+### Étape 1 : Code de l'API
 
-(Ces étapes restent inchangées)
+Le code est placé dans une structure `src` pour une meilleure organisation.
 
-### Étape 4 : Intégration Continue avec GitLab CI
+**Fichier `src/api/main.py` :**
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List, Dict
 
-Le pipeline est mis à jour pour que le job de `linting` génère un rapport qui est ensuite archivé en tant qu'artefact GitLab.
+app = FastAPI()
+db: Dict[int, str] = {}
 
-**Contenu du fichier `api_test_kit/.gitlab-ci.yml` :**
+def init_db():
+    """Fonction pour initialiser/réinitialiser la base de données en mémoire."""
+    global db
+    db = {1: "pomme", 2: "banane"}
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialise la base de données au démarrage de l'application."""
+    init_db()
+
+@app.get("/items", response_model=List[str])
+def get_items():
+    return list(db.values())
+
+@app.post("/items", status_code=201)
+def create_item(item: Item):
+    if item.name in db.values():
+        raise HTTPException(status_code=400, detail="Item already exists")
+    new_id = max(db.keys() or [0]) + 1
+    db[new_id] = item.name
+    return {"id": new_id, "name": item.name}
+```
+
+### Étape 2 : Écriture des Tests
+
+Les deux types de tests sont dans le même répertoire `tests/`.
+
+**Fichier `tests/test_unit_logic.py` :**
+```python
+import pytest
+from fastapi import HTTPException
+from src.api import main
+
+def test_create_item_logic_with_mock_db():
+    # SETUP: On utilise une base de données propre pour ce test
+    main.db = {10: "test_item"}
+    
+    # TEST: Cas nominal
+    new_item = main.Item(name="orange")
+    result = main.create_item(new_item)
+    assert result["name"] == "orange"
+    assert "orange" in main.db.values()
+
+    # TEST: Cas d'erreur
+    duplicate_item = main.Item(name="test_item")
+    with pytest.raises(HTTPException) as excinfo:
+        main.create_item(duplicate_item)
+    assert excinfo.value.status_code == 400
+```
+
+**Fichier `tests/test_functional_endpoints.py` :**
+```python
+import pytest
+from fastapi.testclient import TestClient
+from src.api.main import app, init_db
+
+# On crée un client de test qui interagit avec notre app FastAPI
+client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def setup_and_teardown():
+    """Ce fixture s'exécute avant chaque test pour garantir un état propre."""
+    init_db()
+    yield
+    # Le code après 'yield' pourrait servir au nettoyage si nécessaire
+
+def test_get_items():
+    response = client.get("/items")
+    assert response.status_code == 200
+    json_response = response.json()
+    assert isinstance(json_response, list)
+    assert "pomme" in json_response
+    assert "banane" in json_response
+
+@pytest.mark.parametrize("item_name, expected_status", [
+    ("raisin", 201),
+    ("pomme", 400), # Item dupliqué
+])
+def test_post_item(item_name, expected_status):
+    response = client.post("/items", json={"name": item_name})
+    assert response.status_code == expected_status
+    if expected_status == 201:
+        # On vérifie que l'item a bien été ajouté
+        get_response = client.get("/items")
+        assert item_name in get_response.json()
+```
+
+### Étape 3 : Dépendances et Documentation
+
+Un seul fichier pour toutes les dépendances.
+
+**Fichier `requirements.txt` :**
+```
+fastapi
+uvicorn[standard]
+pytest
+pytest-cov
+ruff
+```
+
+**Fichier `README.md` :**
+```markdown
+# Kit de Démarrage API Python
+
+Ce projet contient une API FastAPI et sa suite de tests (unitaires et fonctionnels).
+
+## Installation
+
+1.  Clonez le projet.
+2.  Créez un environnement virtuel : `python3 -m venv venv`
+3.  Activez-le : `source venv/bin/activate`
+4.  Installez les dépendances : `pip install -r requirements.txt`
+
+## Lancer l'API localement
+
+```bash
+uvicorn src.api.main:app --reload
+```
+L'API sera accessible à l'adresse `http://127.0.0.1:8000`.
+
+## Lancer les Tests
+
+Les tests n'ont pas besoin que l'API soit démarrée manuellement.
+Depuis la racine du projet, lancez simplement :
+
+```bash
+pytest
+```
+
+Pour voir le rapport de couverture de code :
+```bash
+pytest --cov=src/api
+```
+
+### Étape 4 : Intégration Continue
+
+Le pipeline est maintenant beaucoup plus simple.
+
+**Fichier `.gitlab-ci.yml` :**
 ```yaml
 image: python:3.9-slim
 
-stages:
-  - lint
-  - test
-
-before_script:
-  - pip install -r requirements.txt
-  - apt-get update && apt-get install -y procps
-  - uvicorn api_project.api:app --host 0.0.0.0 --port 8080 &
-  - sleep 5
-
-linting:
-  stage: lint
-  script:
-    - ruff check tests/ > ruff_report.txt 2>&1 || true
-    - ruff format --check tests/ >> ruff_report.txt 2>&1 || true
-    - cat ruff_report.txt
-    - ruff check tests/
-  artifacts:
-    name: "Rapport de Linting Ruff"
-    paths:
-      - ruff_report.txt
-    when: always
-
-testing:
-  stage: test
-  script:
-    - pytest --cov=tests --cov-report=term-missing --cov-report=xml
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
-  artifacts:
-    when: always
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage.xml
-```
-
-### Étape 5 : Documentation & Debriefing
-
-(Cette étape reste inchangée)
-
-### Étape 6 (Bonus) : Optimisation du Pipeline avec le Cache
-
-Cette partie correspond à la question bonus posée au candidat.
-
-> #### 💡 Question Bonus à poser pendant le debriefing
->
-> * *"Votre pipeline réinstalle les dépendances Python à chaque exécution. Comment pourriez-vous optimiser ce comportement pour accélérer significativement les exécutions futures ?"*
->
-> * **Ce que vous cherchez :** Le candidat doit parler du **cache de GitLab CI**. Il doit expliquer que le cache permet de sauvegarder des fichiers et répertoires entre les exécutions de jobs. L'idée est de mettre en cache le répertoire de `pip` pour ne pas avoir à retélécharger et réinstaller les dépendances si le fichier `requirements.txt` n'a pas changé.
-
-**Solution Technique attendue :**
-
-Le candidat doit proposer d'ajouter une section `cache` au fichier `.gitlab-ci.yml`.
-
-**Contenu final du fichier `api_test_kit/.gitlab-ci.yml` avec le cache :**
-
-```yaml
-image: python:3.9-slim
-
-# Définition du cache au niveau global pour tous les jobs
 cache:
   key:
     files:
-      - requirements.txt # La clé du cache est basée sur le contenu de ce fichier
+      - requirements.txt
   paths:
-    - .cache/pip/ # On sauvegarde le répertoire de cache de pip
-  policy: pull-push # On télécharge le cache en début de job et on le met à jour en fin de job
+    - .cache/pip/
 
 stages:
   - lint
   - test
 
 before_script:
-  # pip utilisera le cache s'il est disponible, accélérant grandement cette étape
   - pip install -r requirements.txt
-  - apt-get update && apt-get install -y procps
-  - uvicorn api_project.api:app --host 0.0.0.0 --port 8080 &
-  - sleep 5
 
 linting:
   stage: lint
   script:
-    - ruff check tests/ > ruff_report.txt 2>&1 || true
-    - ruff format --check tests/ >> ruff_report.txt 2>&1 || true
+    - ruff check . > ruff_report.txt 2>&1 || true
     - cat ruff_report.txt
-    - ruff check tests/
+    - ruff check .
   artifacts:
-    name: "Rapport de Linting Ruff"
     paths:
       - ruff_report.txt
     when: always
@@ -142,28 +209,12 @@ linting:
 testing:
   stage: test
   script:
-    - pytest --cov=tests --cov-report=term-missing --cov-report=xml
+    # On exécute tous les tests trouvés dans le répertoire tests/
+    - pytest tests/ --cov=src/api --cov-report=term-missing --cov-report=xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
-    when: always
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
 ```
-
-## Grille d'Évaluation Synthétique (Mise à Jour)
-
-| Axe d'Évaluation | Ce qu'on observe | Niveau (1 à 5) | Commentaires |
-| :--- | :--- | :--- | :--- |
-| Maîtrise Python/FastAPI | Capacité à créer une API simple et fonctionnelle. | | |
-| Fondamentaux (Artisan) | Aisance avec Linux, Git, venv, pip. | | |
-| Maîtrise de Pytest | Capacité à écrire des tests, créer des fixtures, utiliser la paramétrisation. | | |
-| **Maîtrise de la CI/CD** | **Capacité à créer un pipeline GitLab CI fonctionnel (stages, jobs, coverage, artifacts).** | | |
-| Qualité du Code | Clarté, simplicité, respect du principe DRY, séparation config/code. | | |
-| Posture de Coach | Qualité du README.md, clarté des explications orales, capacité à vulgariser. | | |
-| Vision Stratégique | Pertinence des améliorations proposées, **capacité à identifier des optimisations (cache CI)**. | | |
-
-**Décision**
-
-Go / No-Go / À revoir
