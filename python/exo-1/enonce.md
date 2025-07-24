@@ -2,70 +2,46 @@
 
 **Durée : 1h30**
 
-* **Création de l'API et du projet de test :** 60 minutes
-* **Intégration Continue & Documentation :** 30 minutes
-
 ## Contexte & Scénario
 
-Vous êtes notre nouveau Coach-Artisan. Votre toute première mission est de créer un kit de démarrage de test "clés en main" pour une de nos squads Python. Cette squad doit développer une nouvelle API REST et n'a aucune expérience en automatisation de tests.
-
-Votre livrable doit être si simple et si bien documenté qu'un développeur junior puisse le prendre en main, comprendre la structure, et lancer les tests en moins de 10 minutes, à la fois **localement et dans la CI/CD**.
+Vous êtes notre nouveau Coach-Artisan. Votre mission est de créer un kit de démarrage "clés en main" pour une squad Python. Ce kit doit illustrer une stratégie de test complète et moderne dans une structure de projet unifiée, facile à prendre en main par un développeur junior.
 
 ## Votre Mission : Créer la Solution de A à Z
 
-Vous partez d'une feuille blanche. Vous devez créer à la fois une API minimaliste et le projet de test qui la valide, puis industrialiser l'exécution de ces tests. L'important n'est pas la complexité de l'API, mais la qualité, la simplicité et la robustesse de la solution globale que vous allez construire.
+En partant de zéro, vous devez créer un **dépôt Git unique** contenant :
 
-N'hésitez pas à poser des questions et à verbaliser vos pensées.
+1.  Une API minimaliste.
+2.  Une stratégie de test à deux niveaux : **unitaire** et **fonctionnel**.
+3.  Un pipeline d'intégration continue pour industrialiser les vérifications.
 
 ## Contraintes et Exigences
 
-#### L'API (à créer) :
+#### Structure du Projet
 
-* Utilisez **FastAPI**.
-* Elle doit exposer deux endpoints : `GET /items` et `POST /items`.
-* Le code de l'API doit être dans un fichier `api.py`.
+* Le projet doit être un **dépôt Git unique**.
+* Le code source de l'application doit se trouver dans un répertoire `src/`.
+* Tous les tests (unitaires et fonctionnels) doivent se trouver dans un répertoire `tests/` à la racine.
 
-#### Le Projet de Test (à créer) :
+#### L'API et ses Tests
 
-* Le projet doit être dans un répertoire séparé.
-* Utilisez un **environnement virtuel** Python.
-* Utilisez **Pytest** comme framework de test et **requests** comme client HTTP.
-* Les dépendances doivent être listées dans un fichier `requirements.txt`.
-* Le projet doit être un dépôt **Git** initialisé.
+* **API (dans `src/`)** :
+    * Utilisez **FastAPI**.
+    * Exposez deux endpoints : `GET /items` et `POST /items`.
+* **Tests Unitaires (dans `tests/`)** :
+    * Écrivez au moins un test unitaire pour la logique métier, sans dépendre d'un serveur HTTP.
+* **Tests Fonctionnels (dans `tests/`)** :
+    * Validez les endpoints de l'API en utilisant le `TestClient` de FastAPI (sans démarrer de serveur externe).
+    * Écrivez un test pour `GET /items` et un test paramétré pour `POST /items`.
 
-#### Les Tests (à écrire) :
+#### L'Intégration Continue et la Documentation
 
-* Un test pour l'endpoint `GET /items`.
-* Un test **paramétré** pour l'endpoint `POST /items`.
-* La configuration de l'URL de l'API ne doit pas être en dur dans le code des tests.
-
-#### L'Intégration Continue (à créer) :
-
-* Créez un fichier `.gitlab-ci.yml`.
-* Le pipeline doit contenir au minimum deux étapes (`stages`) : une pour le **lint** et une pour le **test**. Le stage de test ne doit s'exécuter que si le stage de lint a réussi.
-* Le job de lint doit vérifier la qualité du code Python en utilisant **Ruff**.
-* **La sortie du linter (son rapport) doit être archivée en tant qu'artefact GitLab.**
-* Le job de test doit exécuter la suite de tests Pytest et générer un **rapport de couverture de code**, également intégré à GitLab.
-
-#### La Documentation (à rédiger) :
-
-* Un fichier `README.md` doit être créé. Il doit expliquer comment installer et lancer les tests localement.
-
-## Déroulé Attendu
-
-1.  Mise en place de la structure des répertoires.
-2.  Développement de l'API minimaliste (`api.py`).
-3.  Mise en place du projet de test (environnement virtuel, Git, dépendances).
-4.  Écriture des tests.
-5.  **Création du pipeline d'intégration continue (`.gitlab-ci.yml`).**
-6.  Rédaction de la documentation (`README.md`).
-
-À la fin, vous nous présenterez oralement votre solution en expliquant vos choix.
-
----
+* **Dépendances (`requirements.txt`)** :
+    * Le fichier doit lister toutes les dépendances nécessaires (`fastapi`, `pytest`, `ruff`, etc.).
+* **GitLab CI (`.gitlab-ci.yml`)** :
+    * Le pipeline doit contenir les stages `lint` et `test`.
+    * Le job de `lint` doit utiliser **Ruff**. Son rapport doit être archivé en tant qu'artefact.
+    * Le job de `test` doit exécuter tous les tests et générer un rapport de couverture de code.
+* **Documentation (`README.md`)** :
+    * Le README doit expliquer comment installer les dépendances, lancer l'API localement et exécuter la suite de tests.
 
 ### Question Bonus pour le Debriefing
-
-Pendant la présentation finale, soyez prêt à répondre à la question suivante :
-
-* *"Votre pipeline réinstalle les dépendances Python à chaque exécution. Comment pourriez-vous optimiser ce comportement pour accélérer significativement les exécutions futures ?"*
