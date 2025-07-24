@@ -39,6 +39,9 @@ from typing import List, Dict
 app = FastAPI()
 db: Dict[int, str] = {}
 
+class Item(BaseModel):
+    name: str
+
 def init_db():
     """Fonction pour initialiser/réinitialiser la base de données en mémoire."""
     global db
